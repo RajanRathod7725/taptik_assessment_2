@@ -7,10 +7,21 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import listPlugin from '@fullcalendar/list'
 import { Modal } from 'bootstrap'
+const calendarRef = ref(null)
+
+const currentYear = new Date().getFullYear()
+const currentMonth = new Date().getMonth() + 1;
+
 const filterType = ref('');
+const filterYear = ref(currentYear);
+const filterMonth = ref(currentMonth.toString().padStart(2, '0'));
+
+const yearOptions = ref([])
+for (let y = currentYear - 5; y <= currentYear + 5; y++) {
+    yearOptions.value.push(y)
+}
 
 let modalInstance = null;
-
 const showModal = async () => {
     const modalEl = document.getElementById('eventModal')
     if (!modalInstance) {
@@ -44,8 +55,39 @@ const calendarOptions = ref({
 const fetchEvents = async () => {
     const { data } = await axios.get('/events')
 
-    calendarOptions.value.events = data
+    const events = data
         .filter(e => !filterType.value || e.type === filterType.value)
+        .filter(e => {
+            if (!filterYear.value) return true
+            const eventYear = new Date(e.start_time).getFullYear()
+            return eventYear === parseInt(filterYear.value)
+        })
+        .map(e => ({
+            ...e,
+            title: `${e.title} (${e.type})`,
+            type: e.type,
+            start: e.start_time,
+            end: e.end_time,
+            id: e.id
+        }))
+
+    calendarOptions.value = {
+        ...calendarOptions.value,
+        events
+    }
+
+    if (calendarRef.value && filterYear.value) {
+        const calendarApi = calendarRef.value.getApi()
+        calendarApi.gotoDate(`${filterYear.value}-${filterMonth.value}-01`)
+    }
+
+    /*calendarOptions.value.events = data
+        .filter(e => !filterType.value || e.type === filterType.value)
+        .filter(e => {
+            if (!filterYear.value) return true
+            const eventYear = new Date(e.start_time).getFullYear()
+            return eventYear === parseInt(filterYear.value)
+        })
         .map(e => ({
         ...e,
         title: `${e.title} (${e.type})`,
@@ -53,7 +95,7 @@ const fetchEvents = async () => {
         start: e.start_time,
         end: e.end_time,
         id: e.id
-    }))
+    }))*/
 }
 
 const openBlankCreateModal = (dateStr) => {
@@ -132,21 +174,29 @@ onMounted(fetchEvents)
 <template>
     <div>
         <div class="row mb-3">
-            <div class="col-md-10">
+            <div class="col-md-8">
                 <button type="button" class="btn btn-primary" @click="openBlankCreateModal()">Add Event</button>
             </div>
-            <div class="col-md-2 text-end">
-                <select class="form-control form-select" v-model="filterType" @change="fetchEvents">
-                    <option value="">All</option>
-                    <option value="task">Task</option>
-                    <option value="event">Event</option>
-                    <option value="appointment">Appointment</option>
-                </select>
+            <div class="col-md-4 text-end">
+                <div class="row">
+                    <div class="col-md-6">
+                        <select class="form-control form-select" v-model="filterType" @change="fetchEvents">
+                            <option value="">All</option>
+                            <option value="task">Task</option>
+                            <option value="event">Event</option>
+                            <option value="appointment">Appointment</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <select class="form-control form-select" v-model="filterYear" @change="fetchEvents">
+                            <option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div></div>
         </div>
 
-        <FullCalendar :options="calendarOptions" />
+        <FullCalendar ref="calendarRef" :options="calendarOptions" />
 
         <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
             <div class="modal-dialog">
